@@ -61,7 +61,44 @@ def guess_region_column(columns) -> str:
                 return c
     return columns[0]
 
-
+JOB_TYPE_HINTS = ["工作性質", "僱用", "雇用", "全職", "職缺類型", "工時", "型態", "性質"]
+EDU_HINTS = ["學歷", "教育", "程度"]
+NONE_OPTION = "(不使用)"
+ 
+ 
+def guess_column(columns, hints):
+    for h in hints:
+        for c in columns:
+            if h in str(c):
+                return c
+    return None
+ 
+ 
+def checkbox_filter(df, label, hints, key):
+    """回傳 (欄位, 勾選的值)。選項 <= 30 個用勾選框，否則用多選選單。"""
+    columns = list(df.columns)
+    options = [NONE_OPTION] + columns
+    guess = guess_column(columns, hints)
+    col = st.selectbox(
+        f"{label}欄位",
+        options,
+        index=options.index(guess) if guess else 0,
+        key=f"{key}_col",
+    )
+    if col == NONE_OPTION:
+        return col, []
+ 
+    values = sorted(df[col].dropna().astype(str).str.strip().unique())
+    if not values:
+        st.caption("此欄位沒有資料")
+        return col, []
+ 
+    st.caption("勾選要保留的選項（全部不勾 = 不限）")
+    if len(values) <= 30:
+        chosen = [v for v in values if st.checkbox(v, key=f"{key}_chk_{v}")]
+    else:
+        chosen = st.multiselect("選項", values, key=f"{key}_multi")
+    return col, chosen
 # ------------------------------------------------------------------
 # 側邊欄：資料來源
 # ------------------------------------------------------------------
@@ -114,7 +151,12 @@ with st.sidebar:
         "要搜尋的欄位", columns, default=columns, help="預設搜尋全部欄位"
     )
     match_mode = st.radio("多關鍵字比對", ["全部符合 (AND)", "任一符合 (OR)"], horizontal=True)
-
+     st.divider()
+    st.subheader("進階篩選")
+    with st.expander("工作性質（全職 / 兼職…）", expanded=True):
+        job_col, job_chosen = checkbox_filter(df, "工作性質", JOB_TYPE_HINTS, "job")
+    with st.expander("學歷", expanded=True):
+        edu_col, edu_chosen = checkbox_filter(df, "學歷", EDU_HINTS, "edu")
 # ------------------------------------------------------------------
 # 篩選
 # ------------------------------------------------------------------
@@ -124,7 +166,11 @@ if selected_counties:
     region_text = result[region_col].fillna("").astype(str).map(normalize)
     pattern = "|".join(re.escape(c) for c in selected_counties)
     result = result[region_text.str.contains(pattern, na=False)]
-
+for col, chosen in [(job_col, job_chosen), (edu_col, edu_chosen)]:
+    if col != NONE_OPTION and chosen:
+        values = result[col].fillna("").astype(str).str.strip()
+        result = result[values.isin(chosen)]
+        
 keywords = [k for k in normalize(keyword).split() if k]
 if keywords and search_cols:
     blob = pd.Series("", index=result.index, dtype="object")
@@ -132,6 +178,7 @@ if keywords and search_cols:
         blob = blob + " " + result[c].fillna("").astype(str)
     blob = blob.map(normalize)
     masks = [blob.str.contains(re.escape(k), case=False, na=False) for k in keywords]
+for k in keywords]    
     combined = masks[0]
     for m in masks[1:]:
         combined = (combined & m) if match_mode.startswith("全部") else (combined | m)
