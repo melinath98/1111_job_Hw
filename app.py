@@ -151,7 +151,7 @@ with st.sidebar:
         "要搜尋的欄位", columns, default=columns, help="預設搜尋全部欄位"
     )
     match_mode = st.radio("多關鍵字比對", ["全部符合 (AND)", "任一符合 (OR)"], horizontal=True)
-     st.divider()
+    st.divider()
     st.subheader("進階篩選")
     with st.expander("工作性質（全職 / 兼職…）", expanded=True):
         job_col, job_chosen = checkbox_filter(df, "工作性質", JOB_TYPE_HINTS, "job")
@@ -177,8 +177,7 @@ if keywords and search_cols:
     for c in search_cols:
         blob = blob + " " + result[c].fillna("").astype(str)
     blob = blob.map(normalize)
-    masks = [blob.str.contains(re.escape(k), case=False, na=False) for k in keywords]
-for k in keywords]    
+    masks = [blob.str.contains(re.escape(k), case=False, na=False) for k in keywords] 
     combined = masks[0]
     for m in masks[1:]:
         combined = (combined & m) if match_mode.startswith("全部") else (combined | m)
